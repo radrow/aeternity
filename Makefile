@@ -322,6 +322,10 @@ $(AEVM_EXTERNAL_TEST_DIR)/ethereum_tests:
 eqc-test: eqc
 	env ERL_FLAGS="-eqc_testing_time_multiplier $(EQC_EUNIT_TESTING_TIME_MULTIPLIER)" $(REBAR) as test,eqc eunit $(EQC_EUNIT_TEST_FLAGS_FINAL)
 
+.PHONY: eqc-integration-test
+eqc-integration-test: eqc
+	env ERL_FLAGS="" $(REBAR) as test,eqc_integration eunit --verbose --app eqc_integration_test
+
 EQC_TEST_REPO = https://github.com/Quviq/epoch-eqc.git
 EQC_TEST_VERSION = 658e16b
 
@@ -346,8 +350,8 @@ EQC_LIB_DOWNLOAD_URL = http://quviq-licencer.com/downloads/eqcR20-$(EQC_LIB_VSN)
 EQC_LIB_DOWNLOAD_SHA256 = c02a978cb7b7665fee220dda303c86fd517b89ce7fdafc5cc7181eadab26424e
 EQC_LIB_ROOT_DIR = "Quviq QuickCheck version $(EQC_LIB_VSN)"
 
-.PHONY: eqc-lib-test eqc-lib-registration eqc-lib-start
-eqc-lib-test eqc-lib-registration eqc-lib-start: eqc-lib-%: | eqc-lib/eqc
+.PHONY: eqc-lib-test eqc-lib-integration-test eqc-lib-registration eqc-lib-start
+eqc-lib-test eqc-lib-integration-test eqc-lib-registration eqc-lib-start: eqc-lib-%: | eqc-lib/eqc
 	( export ERL_LIBS="$(CURDIR)"/$(word 1,$|)/$(EQC_LIB_ROOT_DIR); $(MAKE) eqc-$*; )
 
 eqc-lib/eqc: | eqc-lib/eqc.zip

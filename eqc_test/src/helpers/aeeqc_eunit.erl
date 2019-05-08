@@ -1,5 +1,6 @@
 -module(aeeqc_eunit).
 -export([is_tests_mod/1]).
+-export([prop_test_repr/3]).
 -export([props_mod_test_repr/2]).
 -export([testing_time_multiplier/0]).
 -export([tests_mod/1]).
