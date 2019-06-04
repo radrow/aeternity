@@ -442,7 +442,7 @@ clean:
 .PHONY: eqc-clean
 eqc-clean:
 	rm -rf .eqc-info current_counterexample.eqc
-	rm -rf _build/test+eqc
+	rm -rf _build/test+eqc _build/test+eqc_integration
 
 ## Do not delete `eqc`.
 distclean: clean
