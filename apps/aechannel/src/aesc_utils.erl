@@ -599,7 +599,8 @@ verify_signatures(SignedTx, Trees, Env, CheckedSigners,
         {_, _} -> % most inner tx
             {ok, Signers} = aetx:signers(Tx, Trees),
             BasicSigners  = Signers -- CheckedSigners,
-            aetx_sign:verify_half_signed(BasicSigners, SignedTx)
+            Height        = aetx_env:height(Env),
+            aetx_sign:verify_half_signed(BasicSigners, SignedTx, Height)
     end.
 
 -spec is_delegate(aesc_channels:id(), aec_keys:pubkey(),
@@ -875,7 +876,7 @@ count_authentications(SignedTx) ->
 
 count_authentications(SignedTx, Cnt) ->
     case aetx:specialize_callback(aetx_sign:tx(SignedTx)) of
-        {aega_meta_tx, InnerSignedTx} -> 
+        {aega_meta_tx, InnerSignedTx} ->
             count_authentications(aega_meta_tx:tx(InnerSignedTx), Cnt + 1);
         {_, _} -> % most inner tx
             Cnt + length(aetx_sign:signatures(SignedTx))
@@ -908,7 +909,7 @@ channel_create_nonce_or_auth_id(SignedTx) ->
     Initiator = aesc_create_tx:initiator_pubkey(Txi),
     channel_create_nonce_or_auth_id(SignedTx, Initiator).
 
-    
+
 %% since there might be a couple of nested meta transactions by the same
 %% signer - we need the innermost one as it is is required for channel_id
 %% computation
@@ -917,7 +918,7 @@ channel_create_nonce_or_auth_id(SignedTx, Initiator) ->
         not_found -> {error, missing_authentication};
         V -> {ok, V}
     end.
-        
+
 channel_create_nonce_or_auth_id(SignedTx, Initiator, OldValueFound) ->
     case aetx:specialize_callback(aetx_sign:tx(SignedTx)) of
         {aega_meta_tx, MetaTx} ->

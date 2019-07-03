@@ -469,7 +469,7 @@ awaiting_locked(cast, {?MIN_DEPTH_ACHIEVED, ChainId, ?WATCH_DEP, TxHash},
     report(info, own_deposit_locked, D),
     next_state(dep_signed,
         send_deposit_locked_msg(TxHash, D#data{op = #op_lock{ tag = deposit
-                                                            , data = OpData}})); 
+                                                            , data = OpData}}));
 awaiting_locked(cast, {?MIN_DEPTH_ACHIEVED, ChainId, ?WATCH_WDRAW, TxHash},
                 #data{ on_chain_id = ChainId
                      , op = #op_min_depth{ tag = ?WATCH_WDRAW
@@ -1667,7 +1667,6 @@ adjust_ttl(TTL) when is_integer(TTL), TTL >= 0 ->
 curr_height() ->
     aec_headers:height(aec_chain:top_header()).
 
-
 new_contract_tx_for_signing(Opts, From, #data{ state = State
                                              , opts = ChannelOpts
                                              , on_chain_id = ChannelId } = D) ->
@@ -2379,13 +2378,13 @@ request_signing_(Tag, SignedTx, Updates, BlockHash, #data{client = Client} = D) 
     lager:debug("signing(~p) requested", [Tag]),
     D#data{ op = #op_sign{ tag = Tag
                          , data = #op_data{ signed_tx = SignedTx
-                                          , block_hash = BlockHash 
+                                          , block_hash = BlockHash
                                           , updates = Updates}}
           , log    = log_msg(req, sign, Msg, D#data.log)}.
 
 start_min_depth_watcher(Type, SignedTx, Updates,
                         #data{ watcher = Watcher0
-                             , op = Op 
+                             , op = Op
                              , opts = #{minimum_depth := MinDepth}} = D) ->
     BlockHash = block_hash_from_op(Op),
     {Mod, Tx} = aetx:specialize_callback(aetx_sign:innermost_tx(SignedTx)),
@@ -2403,7 +2402,7 @@ start_min_depth_watcher(Type, SignedTx, Updates,
                         , op = #op_min_depth{ tag = Sub
                                             , tx_hash = TxHash
                                             , data = #op_data{ signed_tx = SignedTx
-                                                             , block_hash = BlockHash 
+                                                             , block_hash = BlockHash
                                                              , updates = Updates}}}};
         {{?MIN_DEPTH, Sub}, Pid} when is_pid(Pid) ->
             ok = aesc_fsm_min_depth_watcher:watch_for_min_depth(
@@ -2411,21 +2410,21 @@ start_min_depth_watcher(Type, SignedTx, Updates,
             {ok, D1#data{op = #op_min_depth{ tag = Sub
                                            , tx_hash = TxHash
                                            , data = #op_data{ signed_tx = SignedTx
-                                                            , block_hash = BlockHash 
+                                                            , block_hash = BlockHash
                                                             , updates = Updates}}}};
         {unlock, Pid} when Pid =/= undefined ->
             ok = aesc_fsm_min_depth_watcher:watch_for_unlock(Pid, ?MODULE),
             {ok, D1#data{op = #op_watch{ type = unlock
                                        , tx_hash = TxHash
                                        , data = #op_data{ signed_tx = SignedTx
-                                                        , block_hash = BlockHash 
+                                                        , block_hash = BlockHash
                                                         , updates = Updates}}}};
         {close, Pid} when Pid =/= undefined ->
             ok = aesc_fsm_min_depth_watcher:watch_for_channel_close(Pid, MinDepth, ?MODULE),
             {ok, D1#data{op = #op_watch{ type = close
                                        , tx_hash = TxHash
                                        , data = #op_data{ signed_tx = SignedTx
-                                                        , block_hash = BlockHash 
+                                                        , block_hash = BlockHash
                                                         , updates = Updates}}}};
         {_, Pid} when Pid =/= undefined ->  %% assertion
             lager:debug("Unknown Type = ~p, Pid = ~p", [Type, Pid]),
@@ -2434,7 +2433,7 @@ start_min_depth_watcher(Type, SignedTx, Updates,
             {ok, D1#data{op = #op_watch{ type = Type
                                        , tx_hash = TxHash
                                        , data = #op_data{ signed_tx = SignedTx
-                                                        , block_hash = BlockHash 
+                                                        , block_hash = BlockHash
                                                         , updates = Updates}}}}
     end.
 
@@ -2497,6 +2496,7 @@ report(Tag, St, Msg, D) ->
                                  , info => St
                                  , data => Msg }, D).
 
+<<<<<<< HEAD
 report_info(DoRpt, Msg, #data{client_connected = false}) ->
     lager:debug("No client. DoRpt = ~p, Msg = ~p", [DoRpt, Msg]),
     ok;
@@ -2510,6 +2510,23 @@ report_info(DoRpt, Msg0, #data{client = Client} = D) ->
             ok
     end,
     ok.
+=======
+check_withdraw_created_msg(#{ channel_id := ChanId
+                            , block_hash := ?NOT_SET_BLOCK_HASH
+                            , data       := #{tx      := TxBin,
+                                              updates := UpdatesBin}} = Msg,
+                  #data{ on_chain_id = ChanId } = Data) ->
+    Updates = [aesc_offchain_update:deserialize(U) || U <- UpdatesBin],
+    SignedTx = aetx_sign:deserialize_from_binary(TxBin),
+    case check_tx_and_verify_signatures(SignedTx, Updates, channel_withdraw_tx,
+                                        Data,
+                                        pubkeys(other_participant, Data),
+                                        not_withdraw_tx) of
+        ok ->
+            {ok, SignedTx, Updates, log(rcv, ?WDRAW_CREATED, Msg, Data)};
+        {error, _} = Err -> Err
+    end.
+>>>>>>> 31afadfe... Make aetx_sign:verify height-aware and allow TxHash signature
 
 rpt_message(Msg, #data{ on_chain_id = undefined }) ->
     Msg;
