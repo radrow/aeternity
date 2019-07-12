@@ -17,9 +17,9 @@
 -export([start_link/0]).
 
 %% API called from strongly connected component aec_peers
--export([schedule_ping/1]).
+-export([schedule_ping/1]). %% XXX On outbound connection established; and by `aec_peers:log_ping`.
 
--export([ start_sync/3
+-export([ start_sync/3 %% XXX On handling ping received from peer, with same genesis, remote peer claims greater or same difficulty.
         , get_generation/2
         , has_generation/1
         , set_last_generation_in_sync/0 ]).

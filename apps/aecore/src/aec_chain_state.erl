@@ -883,7 +883,7 @@ find_one_predecessor([N|Left], Node) ->
 
 grant_fees(Node, Trees, Delay, FraudStatus, State) ->
     NewestBlockHeight = node_height(Node) - Delay + ?POF_REPORT_DELAY,
-    KeyNode4 = find_predecessor_at_height(Node, NewestBlockHeight),
+    KeyNode4 = find_predecessor_at_height(Node, NewestBlockHeight), %% XXX This function is already used at each key block, with height 178 blocks ago.
     KeyNode3 = db_get_node(prev_key_hash(KeyNode4)),
     KeyNode2 = db_get_node(prev_key_hash(KeyNode3)),
     KeyNode1 = db_get_node(prev_key_hash(KeyNode2)),

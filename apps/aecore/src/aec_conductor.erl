@@ -139,7 +139,7 @@ is_leader() ->
 
 -spec post_block(aec_blocks:block()) -> 'ok' | {'error', any()}.
 post_block(Block) ->
-    case aec_validation:validate_block(Block) of
+    case aec_validation:validate_block(Block) of %% XXX Here is validation in context of caller.
         ok ->
             gen_server:call(?SERVER, {post_block, Block}, 30000);
         {error, {header, Reason}} ->
@@ -152,7 +152,7 @@ post_block(Block) ->
 
 -spec add_synced_block(aec_blocks:block()) -> 'ok' | {'error', any()}.
 add_synced_block(Block) ->
-    case aec_validation:validate_block(Block) of
+    case aec_validation:validate_block(Block) of %% XXX Here is a validation in context of caller.
         ok ->
             gen_server:call(?SERVER, {add_synced_block, Block}, 30000);
         {error, {header, Reason}} ->
@@ -1033,13 +1033,13 @@ handle_mined_block(Block, State) ->
     epoch_mining:info("Block mined: Height = ~p; Hash = ~p",
                       [aec_blocks:height(Block),
                        ok(aec_blocks:hash_internal_representation(Block))]),
-    handle_add_block(Block, State, block_created).
+    handle_add_block(Block, State, block_created). %% XXX No validation on mined block!
 
 handle_signed_block(Block, State) ->
     epoch_mining:info("Block signed: Height = ~p; Hash = ~p",
                       [aec_blocks:height(Block),
                        ok(aec_blocks:hash_internal_representation(Block))]),
-    handle_add_block(Block, State, micro_block_created).
+    handle_add_block(Block, State, micro_block_created). %% XXX No validation on signed block!
 
 ok({ok, Value}) ->
     Value.

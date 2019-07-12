@@ -580,7 +580,7 @@ deserialize_key_from_binary(<<Version:32,
                               Time:64,
                               Info/binary
                             >>) ->
-    case aec_hard_forks:protocol_effective_at_height(Height) =:= Version of
+    case aec_hard_forks:protocol_effective_at_height(Height) =:= Version of %% XXX Shall this check be relaxed?
         false ->
             {error, illegal_version};
         true ->
@@ -679,7 +679,7 @@ deserialize_pow_evidence(_) ->
 %%%===================================================================
 
 validate_key_block_header(Header) ->
-    Validators = [fun validate_version/1,
+    Validators = [fun validate_version/1, %% XXX Check block header version after the other things, for block header version check becoming potentially heavier in case of consensus upgrade proposals? (See analogous check on micro block.)
                   fun validate_pow/1,
                   fun validate_max_time/1
                   ],
@@ -688,7 +688,7 @@ validate_key_block_header(Header) ->
 validate_micro_block_header(Header) ->
     %% NOTE: The signature is not validated since we don't know the leader key
     %%       This check is performed when adding the header to the chain.
-    Validators = [fun validate_version/1,
+    Validators = [fun validate_version/1, %% XXX Maybe check version later (or strict vs. loose check) - on same bases as signature for absence of leader key that is in other (key) block? (Maybe do the same for key block?)
                   fun validate_micro_block_cycle_time/1,
                   fun validate_max_time/1
     ],

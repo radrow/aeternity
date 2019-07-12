@@ -51,7 +51,7 @@ check_env() ->
                                          ok | {error, Reason} when
     Reason :: unknown_protocol_version
             | {protocol_version_mismatch, ExpectedVersion::non_neg_integer()}.
-check_protocol_version_validity(Version, Height) ->
+check_protocol_version_validity(Version, Height) -> %% Used by aec_headers:validate_version/1
     check_protocol_version_validity(Version, Height, protocols()).
 
 -spec protocol_effective_at_height(aec_blocks:height()) -> version().
