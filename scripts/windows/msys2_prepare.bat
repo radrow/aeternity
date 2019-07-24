@@ -1,4 +1,4 @@
-@echo off
+@echo on
 @rem Script to prepare msys2 environment for builds.
 @rem Required vars:
 @rem    ERTS_VERSION
@@ -83,22 +83,23 @@ COPY %~dp0\msys2_env_build.sh %WIN_MSYS2_ROOT%\etc\profile.d\env_build.sh
 echo Current time: %time%
 rem Remove 32-bit tools
 
-bash -lc "pacman -Qet | grep i686 | awk '{ print $1; }' | xargs %PACMAN_RM% || true"
-bash -lc "pacman -Qdt | grep i686 | awk '{ print $1; }' | xargs %PACMAN_RM% || true"
+SET "BASH=%WIN_MSYS2_ROOT%\usr\bin\bash.exe"
+
+"%BASH%" -lc "pacman -Qdt | grep i686 | awk '{ print $1; }' | xargs %PACMAN_RM% || true"
 
 echo Current time: %time%
 rem Remove breaking tools
 
-bash -lc "%PACMAN_RM% %PACMAN_PACKAGES_REMOVE% || true"
+"%BASH%" -lc "%PACMAN_RM% %PACMAN_PACKAGES_REMOVE% || true"
 
 echo Current time: %time%
 rem Upgrade the MSYS2 platform
 
-bash -lc "%PACMAN% -yuu"
+"%BASH%" -lc "%PACMAN% -yuu"
 
 echo Current time: %time%
 rem Install required tools
-bash -lc "%PACMAN% %PACMAN_PACKAGES% %PACMAN_PYTHON_PACKAGES%"
+"%BASH%" -lc "%PACMAN% %PACMAN_PACKAGES% %PACMAN_PYTHON_PACKAGES%"
 
 echo Current time: %time%
 rem Ensure Erlang/OTP %OTP_VERSION% is installed
@@ -107,7 +108,7 @@ IF EXIST "%WIN_OTP_PATH%\bin\" GOTO OTPINSTALLED
 SET "OTP_PACKAGE=otp_win64_%OTP_VERSION%.exe"
 SET "OTP_URL=http://erlang.org/download/%OTP_PACKAGE%"
 PowerShell -Command "(New-Object System.Net.WebClient).DownloadFile(\"%OTP_URL%\", \"%TMP%\%OTP_PACKAGE%\")"
-START "" /WAIT "%TMP%\%OTP_PACKAGE%" /S
+PowerShell -Command "Start-Process -Wait \"%TMP%\%OTP_PACKAGE%\" -ArgumentList \"/S /D=%WIN_OTP_PATH%\""
 :OTPINSTALLED
 
 echo Current time: %time%
@@ -123,17 +124,18 @@ echo Current time: %time%
 rem Ensure Styrene is installed
 
 IF EXIST "%WIN_STYRENE_PATH%" IF "%FORCE_STYRENE_REINSTALL%" NEQ "true" GOTO STYRENEINSTALLED
-bash -lc "rm -rf \"${ORIGINAL_TEMP}/styrene\""
-bash -lc "git clone https://github.com/achadwick/styrene.git \"${ORIGINAL_TEMP}/styrene\""
-bash -lc "cd \"${ORIGINAL_TEMP}/styrene\" && git fetch origin && git checkout v0.3.0"
-bash -lc "cd \"${ORIGINAL_TEMP}/styrene\" && %PIP% uninstall -y styrene"
-bash -lc "cd \"${ORIGINAL_TEMP}/styrene\" && %PIP% install ."
+"%BASH%" -lc "chown -R $USER $HOME"
+"%BASH%" -lc "rm -rf \"${ORIGINAL_TEMP}/styrene\""
+"%BASH%" -lc "git clone https://github.com/achadwick/styrene.git \"${ORIGINAL_TEMP}/styrene\""
+"%BASH%" -lc "cd \"${ORIGINAL_TEMP}/styrene\" && git fetch origin && git checkout v0.3.0"
+"%BASH%" -lc "cd \"${ORIGINAL_TEMP}/styrene\" && %PIP% uninstall -y styrene"
+"%BASH%" -lc "cd \"${ORIGINAL_TEMP}/styrene\" && %PIP% install ."
 :STYRENEINSTALLED
 
 echo Current time: %time%
 rem Remove link.exe from msys2, so it does not interfere with MSVC's link.exe
 
-bash -lc "rm -f /bin/link.exe /usr/bin/link.exe"
+"%BASH%" -lc "rm -f /bin/link.exe /usr/bin/link.exe"
 
 echo Current time: %time%
 rem Finished preparation

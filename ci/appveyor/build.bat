@@ -38,7 +38,7 @@ SET PATH=%WIN_MSYS2_ROOT%\mingw64\bin;%WIN_MSYS2_ROOT%\usr\bin;%PATH%
 :BUILD_build
 @echo Current time: %time%
 rem Run build: build
-bash -lc "cd %BUILD_PATH% && make KIND=test local-build"
+"%WIN_MSYS2_ROOT%\usr\bin\bash.exe" -lc "cd %BUILD_PATH% && make KIND=test local-build"
 
 @GOTO BUILD_DONE
 
