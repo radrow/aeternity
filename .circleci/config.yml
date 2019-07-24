@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  win: sandbox/windows-tools@dev:preview
+  win: circleci/windows-tools@0.0.4
 
 executors:
   infrastructure_container_unstable:
