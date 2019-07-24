@@ -1,4 +1,8 @@
 version: 2.1
+
+orbs:
+  win: sandbox/windows-tools@dev:preview
+
 executors:
   infrastructure_container_unstable:
     docker:
@@ -720,6 +724,22 @@ jobs:
             - "*.tar.gz"
       - *fail_notification
 
+  win_package:
+    executor: win/preview-default
+    environment:
+      - MSVC_VERSION: 14.16.27023
+      - WIN_SDK_VERSION: 10.0.26624.0
+      - WIN_MSYS2_ROOT: C:\msys64
+      - WIN_MSYS2_CACHE: C:\msys64\var\cache\pacman\pkg
+      - WIN_OTP_PATH: C:\Program Files\erl
+      - WIN_JDK_PATH: C:\Program Files\Java\jdk11
+      - BUILD_PATH: /c/projects/aeternity
+      - ERL_EPMD_ADDRESS: 127.0.0.1
+    steps:
+      - checkout
+      - run: echo 'Hello, Windows'
+      - run: git config --global core.autocrlf true
+
   uat_tests:
     executor: builder_container_stable
     <<: *container_config
@@ -966,6 +986,8 @@ workflows:
   version: 2
   build_test_deploy:
     jobs:
+      - win_package
+
       - build:
           filters:
             branches:
