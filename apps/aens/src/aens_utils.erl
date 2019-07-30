@@ -7,15 +7,15 @@
 
 -module(aens_utils).
 
+-include("aens.hrl").
+
 %% API
 -export([check_name_claimed_and_owned/3,
-         to_ascii/1]).
-
-%%%===================================================================
-%%% Types
-%%%===================================================================
-
--define(LABEL_SEPARATOR, <<".">>).
+         is_name_registrar/1,
+         check_split_name/1,
+         name_to_ascii/1,
+         to_ascii/1,
+         ascii_encode/1]).
 
 %%%===================================================================
 %%% API
@@ -36,8 +36,8 @@ check_name_claimed_and_owned(NameHash, AccountPubKey, Trees) ->
 
 -spec to_ascii(binary()) -> {ok, binary()} | {error, term()}.
 to_ascii(Name) when is_binary(Name)->
-    case validate_name(Name) of
-        ok ->
+    case check_split_name(Name) of
+        {ok, _, _} ->
             name_to_ascii(Name);
         {error, _} = E ->
             E
@@ -59,31 +59,45 @@ check_claimed_status(Name) ->
         revoked -> {error, name_revoked}
     end.
 
-validate_name(Name) ->
+check_split_name(Name) ->
     case binary:split(Name, ?LABEL_SEPARATOR, [global, trim]) of
-        [_Label, RegistrarNS] ->
-            case [RN || RN <- aec_governance:name_registrars(), RN =:= RegistrarNS] of
-                [] -> {error, registrar_unknown};
-                _  -> ok
-            end;
-        [_Name] ->
+        [_] ->
             {error, no_registrar};
-        [_Label | _Namespaces] ->
-            {error, multiple_namespaces}
+        [_|_] = NameParts ->
+            RegistrarNS = lists:last(NameParts),
+            case is_name_registrar(RegistrarNS) of
+                true  ->
+                    PartsLen = length(NameParts),
+                    NameKind = if PartsLen == 2 -> name; true -> subname end,
+                    {ok, NameKind, NameParts};
+                false ->
+                    {error, registrar_unknown}
+            end
     end.
 
 name_to_ascii(Name) when is_binary(Name) ->
-    NameUnicodeList = unicode:characters_to_list(Name, utf8),
-    try idna:encode(NameUnicodeList, [{uts46, true}, {std3_rules, true}]) of
-        NameAscii ->
+    case ascii_encode(Name) of
+        {ok, NameAscii} ->
             %% idna:to_ascii(".aet") returns just "aet"
             case length(string:split(NameAscii, ".", all)) =:= 1 of
                 true  -> {error, no_label_in_registrar};
                 false -> {ok, list_to_binary(NameAscii)}
-            end
+            end;
+        {error, _} = Error ->
+            Error
+    end.
+
+ascii_encode(Name) ->
+    NameUnicodeList = unicode:characters_to_list(Name, utf8),
+    try idna:encode(NameUnicodeList, [{uts46, true}, {std3_rules, true}]) of
+        NameAscii -> {ok, NameAscii}
     catch
         exit:{bad_label, Reason} ->
             {error, {bad_label, Reason}};
         exit:{invalid_codepoint, Cp} ->
             {error, {invalid_codepoint, Cp}}
     end.
+
+
+is_name_registrar(Name) ->
+    lists:member(Name, aec_governance:name_registrars()).
