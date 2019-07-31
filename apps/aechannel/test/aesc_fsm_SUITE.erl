@@ -1848,7 +1848,25 @@ channel_spec(Cfg, ChannelReserve, PushAmount) ->
                 undefined -> Spec;
                 Nonce     -> Spec#{nonce => Nonce}
             end,
-    {I, R, Spec1}.
+
+    I1 = prime_password(I, initiator_password, Cfg),
+    R1 = prime_password(R, responder_password, Cfg),
+
+    {I1, R1, Spec1}.
+
+prime_password(#{} = P, Key, #{} = Cfg) when is_atom(Key) ->
+    case ?config(Key, Cfg) of
+        undefined ->
+            P#{state_password => generate_password()};
+        ignore ->
+            maps:remove(state_password, P);
+        Password ->
+            P#{state_password => Password}
+     end.
+
+-spec generate_password() -> string().
+generate_password() ->
+    base64:encode(crypto:strong_rand_bytes(6)).
 
 config(K, Cfg, Def) ->
     case ?config(K, Cfg) of
