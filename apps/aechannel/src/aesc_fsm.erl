@@ -2836,38 +2836,47 @@ init(#{opts := Opts0} = Arg) ->
     Session = start_session(Arg, Reestablish, Opts#{role => Role}),
     StateInitF = fun(NewI) ->
                           CheckedOpts = maps:merge(Opts#{role => Role}, ReestablishOpts),
-                          {ok, State} = aesc_offchain_state:new(CheckedOpts#{initiator => NewI}),
-                          State
+                          aesc_offchain_state:new(CheckedOpts#{initiator => NewI})
                   end,
-    State = case Initiator of
-                any -> StateInitF;
-                _   -> StateInitF(Initiator)
-            end,
-    ClientMRef = erlang:monitor(process, Client),
-    Data = #data{ role             = Role
-                , client           = Client
-                , client_mref      = ClientMRef
-                , client_connected = true
-                , session = Session
-                , opts    = Opts
-                , state   = State
-                , log     = aesc_window:new(maps:get(log_keep, Opts)) },
-    lager:debug("Session started, Data = ~p", [Data]),
-    %% TODO: Amend the fsm above to include this step. We have transport-level
-    %% connectivity, but not yet agreement on the channel parameters. We will next send
-    %% a channel_open() message and await a channel_accept().
-    case {Role, Reestablish} of
-        {initiator, true} ->
-            ok_next(reestablish_init, send_reestablish_msg(ReestablishOpts, Data));
-        {initiator, false} ->
-            ok_next(initialized, send_open_msg(Data));
-        {responder, true} ->
-            ChanId = maps:get(existing_channel_id, ReestablishOpts),
-            ok_next(awaiting_reestablish,
-                    Data#data{ channel_id  = ChanId
-                             , on_chain_id = ChanId });
-        {responder, false} ->
-            ok_next(awaiting_open, Data)
+    SessionEstablishF = fun(State) ->
+        ClientMRef = erlang:monitor(process, Client),
+        Data = #data{ role             = Role
+                    , client           = Client
+                    , client_mref      = ClientMRef
+                    , client_connected = true
+                    , session = Session
+                    , opts    = Opts
+                    , state   = State
+                    , log     = aesc_window:new(maps:get(log_keep, Opts)) },
+        lager:debug("Session started, Data = ~p", [Data]),
+        %% TODO: Amend the fsm above to include this step. We have transport-level
+        %% connectivity, but not yet agreement on the channel parameters. We will next send
+        %% a channel_open() message and await a channel_accept().
+        case {Role, Reestablish} of
+            {initiator, true} ->
+                ok_next(reestablish_init, send_reestablish_msg(ReestablishOpts, Data));
+            {initiator, false} ->
+                ok_next(initialized, send_open_msg(Data));
+            {responder, true} ->
+                ChanId = maps:get(existing_channel_id, ReestablishOpts),
+                ok_next(awaiting_reestablish,
+                        Data#data{ channel_id  = ChanId
+                                 , on_chain_id = ChanId });
+            {responder, false} ->
+                ok_next(awaiting_open, Data)
+        end
+    end,
+    StateRaw = case Initiator of
+            any -> StateInitF;
+            _   -> StateInitF(Initiator)
+        end,
+    case StateRaw of
+        {ok, State} ->
+            SessionEstablishF(State);
+        StateFun when is_function(StateFun, 1) ->
+            SessionEstablishF(StateFun);
+        {error, invalid_password} ->
+            {stop, invalid_password}
     end.
 
 terminate(Reason, _State, #data{session = Sn} = Data) ->
@@ -2982,7 +2991,8 @@ start_session(#{host := Host, port := Port}, _, #{role := initiator} = Opts) ->
 ok({ok, X}) -> X.
 
 maybe_initialize_offchain_state(any, NewI, #data{state = F} = D) when is_function(F, 1) ->
-    D#data{state = F(NewI)};
+    {ok, State} = F(NewI), %% Should not fail
+    D#data{state = State};
 maybe_initialize_offchain_state(_, _, D) ->
     D.
 
@@ -3377,7 +3387,7 @@ handle_call_(open, shutdown, From, D) ->
     gen_statem:reply(From, ok),
     next_state(awaiting_signature, set_ongoing(D1));
 handle_call_(channel_closing, shutdown, From, #data{strict_checks = Strict} = D) ->
-    case (not Strict) or is_fork_active(?LIMA_PROTOCOL_VSN) of
+    case (not Strict) or was_fork_activated(?LIMA_PROTOCOL_VSN) of
         true ->
             %% Initiate mutual close
             {ok, CloseTx, Updates, BlockHash} = close_mutual_tx_for_signing(D),
@@ -3638,19 +3648,19 @@ init_checks(Opts) ->
             ok
     end.
 
--spec check_state_password(map()) -> ok | {error, required_since_lima | weak_password}.
+-spec check_state_password(map()) -> ok | {error, password_required_since_lima | weak_password}.
 check_state_password(#{state_password := StatePassword}) ->
     check_weak_password(StatePassword);
 check_state_password(_Opts) ->
-    case is_fork_active(?LIMA_PROTOCOL_VSN) of
+    case was_fork_activated(?LIMA_PROTOCOL_VSN) of
         true ->
-            {error, required_since_lima};
+            {error, password_required_since_lima};
         false ->
             ok
     end.
 
 -spec check_weak_password(string()) -> ok | {error, weak_password}.
-check_weak_password(StatePassword) when is_list(StatePassword), length(StatePassword) < 5 ->
+check_weak_password(StatePassword) when is_list(StatePassword), length(StatePassword) < 6 ->
     {error, weak_password};
 check_weak_password(StatePassword) when is_list(StatePassword) ->
     ok.
