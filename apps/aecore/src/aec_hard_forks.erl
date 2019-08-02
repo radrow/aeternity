@@ -3,13 +3,13 @@
 -export([check_env/0]).
 -export([protocols/0,
          check_protocol_version_validity/2,
-         protocol_effective_at_height/1,
-         is_fork_height/1
+         protocol_effective_at_height/1 %% TODO Delete.
         ]).
 
 -ifdef(TEST).
 -export([check_protocol_version_validity/3,
-         sorted_protocol_versions/0
+         sorted_protocol_versions/0,
+         is_fork_height/1 %% TODO Delete.
         ]).
 -endif.
 
@@ -58,6 +58,7 @@ check_protocol_version_validity(Version, Height) ->
 protocol_effective_at_height(H) ->
     protocol_effective_at_height(H, protocols()).
 
+-ifdef(TEST).
 -spec is_fork_height(aec_blocks:height()) -> false | {true, protocol_vsn()}.
 is_fork_height(Height) ->
     Protocols = maps:filter(fun(_P, H) -> H =:= Height end, protocols()),
@@ -65,6 +66,7 @@ is_fork_height(Height) ->
         0 -> false;
         1 -> {true, hd(maps:keys(Protocols))}
     end.
+-endif.
 
 %%%===================================================================
 %%% Internal functions

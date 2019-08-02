@@ -183,12 +183,12 @@ calculate_state_for_new_keyblock(PrevHash, Miner, Beneficiary) ->
     case db_find_node(PrevHash) of
         error -> error;
         {ok, PrevNode} ->
-            Node  = fake_key_node(PrevNode, node_height(PrevNode) + 1, Miner, Beneficiary),
+            Node  = fake_key_node(PrevNode, node_height(PrevNode) + 1, Miner, Beneficiary), %% TODO Compute consensus version considering user config and miner signalling. (Double check if previous block is expected to be connected to genesis, and consider using dirty DB reads for retrieving the outcome of miner signalling if needed.)
             State = new_state_from_persistence(),
             case get_state_trees_in(Node, State) of
                 error -> error;
                 {ok, TreesIn, ForkInfoIn} ->
-                    {Trees,_Fees,_Events} = apply_node_transactions(Node, TreesIn,
+                    {Trees,_Fees,_Events} = apply_node_transactions(Node, PrevNode, TreesIn,
                                                                     ForkInfoIn, State),
                     {ok, Trees}
             end
@@ -251,6 +251,8 @@ set_top_block_hash(H, State) when is_binary(H) -> State#{top_block_hash => H}.
               }).
 
 hash(#node{hash = Hash}) -> Hash.
+
+version(#node{header = H}) -> aec_headers:version(H),
 
 prev_hash(#node{header = H}) -> aec_headers:prev_hash(H).
 
@@ -412,7 +414,24 @@ internal_insert_transaction(Node, Block, Origin) ->
             PrevNode = db_get_node(prev_hash(Node)),
             assert_previous_height(PrevNode, Node),
             assert_previous_key_block_hash(PrevNode, Node),
-            case node_type(Node) of
+            NodeType = node_type(Node),
+            %% Block is connected to genesis (not orphan). Hence
+            %% expected consensus version of block can be determined
+            %% even if user configured as miner signalled.
+            Consensus =
+                case NodeType of
+                    micro ->
+                        version(PrevNode);
+                    key ->
+                        aec_hard_forks:protocol_effective_at_height(node_height(Node)) %% TODO Consider user config and miner signalling, relying on block being connected to genesis.
+                end,
+            case version(Node) =:= Consensus of
+                true ->
+                    ok;
+                false ->
+                    internal_error(consensus_version_inconsistent) %% TODO Decide whether to handle error explicitly.
+            end,
+            case NodeType of
                 key ->
                     KeyHeaders = assert_key_block_time_return_headers(Node),
                     assert_key_block_target(Node, KeyHeaders);
@@ -423,7 +442,7 @@ internal_insert_transaction(Node, Block, Origin) ->
             end
     end,
     ok = db_put_node(Block, hash(Node)),
-    {State3, Events} = update_state_tree(Node, State2),
+    {State3, Events} = update_state_tree(Node, PrevNode, State2),
     persist_state(State3),
     case maps:get(found_pof, State3) of
         no_fraud  -> {ok, Events};
@@ -650,22 +669,22 @@ get_fraud_node(PrevNode, Node) ->
                    , fraud
                    }).
 
-update_state_tree(Node, State) ->
+update_state_tree(Node, PrevNode, State) ->
     {ok, Trees, ForkInfoIn} = get_state_trees_in(Node, State),
     {ForkInfo, MicSibHeaders} = maybe_set_new_fork_id(Node, ForkInfoIn, State),
     State1 = update_found_pof(Node, MicSibHeaders, State),
-    {State2, NewTopDifficulty, Events} = update_state_tree(Node, Trees, ForkInfo, State1),
+    {State2, NewTopDifficulty, Events} = update_state_tree(Node, PrevNode, Trees, ForkInfo, State1),
     OldTopHash = get_top_block_hash(State),
     handle_top_block_change(OldTopHash, NewTopDifficulty, Events, State2).
 
-update_state_tree(Node, TreesIn, ForkInfo, State) ->
+update_state_tree(Node, PrevNode, TreesIn, ForkInfo, State) ->
     case db_find_state(hash(Node)) of
         {ok,_Trees,_ForkInfo} ->
             %% NOTE: This is an internal inconsistency check,
             %% so don't use internal_error
             error({found_already_calculated_state, hash(Node)});
         error ->
-            {DifficultyOut, Events} = apply_and_store_state_trees(Node, TreesIn,
+            {DifficultyOut, Events} = apply_and_store_state_trees(Node, PrevNode, TreesIn,
                                                         ForkInfo, State),
             State1 = set_top_block_hash(hash(Node), State),
             {State1, DifficultyOut, Events}
@@ -711,8 +730,8 @@ get_state_trees_in(Node, State) ->
             end
     end.
 
-apply_and_store_state_trees(Node, TreesIn, ForkInfoIn, State) ->
-    {Trees, Fees, Events} = apply_node_transactions(Node, TreesIn, ForkInfoIn, State),
+apply_and_store_state_trees(Node, PrevNode, TreesIn, ForkInfoIn, State) ->
+    {Trees, Fees, Events} = apply_node_transactions(Node, PrevNode, TreesIn, ForkInfoIn, State),
     assert_state_hash_valid(Trees, Node),
     DifficultyOut = ForkInfoIn#fork_info.difficulty + node_difficulty(Node),
     Fraud = update_fraud_info(ForkInfoIn, Node, State),
@@ -807,7 +826,7 @@ assert_state_hash_valid(Trees, Node) ->
         false -> internal_error({root_hash_mismatch, RootHash, Expected})
     end.
 
-apply_node_transactions(Node, Trees, ForkInfo, State) ->
+apply_node_transactions(Node, PrevNode, Trees, ForkInfo, State) ->
     case is_micro_block(Node) of
         true ->
             #fork_info{fees = FeesIn} = ForkInfo,
@@ -816,7 +835,7 @@ apply_node_transactions(Node, Trees, ForkInfo, State) ->
             #fork_info{fees = FeesIn, fraud = FraudStatus} = ForkInfo,
             GasFees = calculate_gas_fee(aec_trees:calls(Trees)),
             TotalFees = GasFees + FeesIn,
-            Trees1 = aec_trees:perform_pre_transformations(Trees, node_height(Node)),
+            Trees1 = aec_trees:perform_pre_transformations(Trees, version(PrevNode), version(Node), node_height(Node)),
             Delay  = aec_governance:beneficiary_reward_delay(),
             case node_height(Node) > aec_block_genesis:height() + Delay of
                 true  -> {grant_fees(Node, Trees1, Delay, FraudStatus, State), TotalFees, #{}};

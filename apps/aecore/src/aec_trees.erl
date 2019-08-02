@@ -45,7 +45,7 @@
          apply_txs_on_state_trees/4,
          apply_txs_on_state_trees_strict/3,
          grant_fee/3,
-         perform_pre_transformations/2
+         perform_pre_transformations/4
         ]).
 
 %% Proof of inclusion
@@ -63,7 +63,8 @@
 
 -ifdef(TEST).
 -export([internal_serialize_poi_fields/1,
-         internal_serialize_poi_from_fields/1
+         internal_serialize_poi_from_fields/1,
+         perform_pre_transformations/2 %% TODO Delete.
         ]).
 -endif.
 
@@ -245,6 +246,7 @@ gc_cache(Trees, TreesToGC) ->
         Trees,
         TreesToGC).
 
+-ifdef(TEST).
 -spec perform_pre_transformations(trees(), aec_blocks:height()) -> trees().
 perform_pre_transformations(Trees, Height) ->
     Trees0 = aect_call_state_tree:prune(Height, Trees),
@@ -263,6 +265,29 @@ perform_pre_transformations(Trees, Height) ->
                 {true, P} when P > ?LIMA_PROTOCOL_VSN ->
                     Trees2;
                 false -> Trees2
+            end
+    end.
+-endif.
+
+-spec perform_pre_transformations(trees(), non_neg_integer(), non_neg_integer(), aec_blocks:height()) -> trees().
+perform_pre_transformations(Trees, Vsn, Vsn, _Height) ->
+    Trees;
+perform_pre_transformations(Trees, PrevVsn, Vsn, Height) when Vsn > PrevVsn ->
+    Trees0 = aect_call_state_tree:prune(Height, Trees),
+    Trees1 = aeo_state_tree:prune(Height, Trees0),
+    Trees2 = set_ns(Trees1, aens_state_tree:prune(Height, ns(Trees1))),
+    case Height =:= aec_block_genesis:height() of
+        true -> Trees2; % genesis block
+        false ->
+            case Vsn of
+                ?MINERVA_PROTOCOL_VSN -> % hard fork time
+                    aec_block_fork:apply_minerva(Trees2);
+                ?FORTUNA_PROTOCOL_VSN -> % hard fork time
+                    aec_block_fork:apply_fortuna(Trees2);
+                ?LIMA_PROTOCOL_VSN -> % hard fork time
+                    aec_block_fork:apply_lima(Trees2);
+                P when P > ?LIMA_PROTOCOL_VSN ->
+                    Trees2
             end
     end.
 
