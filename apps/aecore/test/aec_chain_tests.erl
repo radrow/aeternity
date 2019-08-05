@@ -1968,7 +1968,7 @@ hard_fork_inserts_new_accounts() ->
     ok.
 
 meck_minerva_fork_height(Height) ->
-    meck:expect(aec_hard_forks, is_fork_height,
+    meck:expect(aec_hard_forks, is_fork_height, %% TODO Adapt.
                 fun(H) ->
                     case H =:= Height of
                         true -> {true, ?MINERVA_PROTOCOL_VSN};

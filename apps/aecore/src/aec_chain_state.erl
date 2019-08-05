@@ -812,11 +812,16 @@ apply_node_transactions(Node, Trees, ForkInfo, State) ->
         true ->
             #fork_info{fees = FeesIn} = ForkInfo,
             apply_micro_block_transactions(Node, FeesIn, Trees);
-        false ->
+        false -> %% Key block
             #fork_info{fees = FeesIn, fraud = FraudStatus} = ForkInfo,
             GasFees = calculate_gas_fee(aec_trees:calls(Trees)),
             TotalFees = GasFees + FeesIn,
-            Trees1 = aec_trees:perform_pre_transformations(Trees, node_height(Node)),
+            PrevHdr =
+                case node_height(Node) =:= aec_block_genesis:height() of
+                    true -> undefined; % genesis block has no previous
+                    false -> export_header(db_get_node(prev_hash(Node)))
+                end,
+            Trees1 = aec_trees:perform_pre_transformations(Trees, PrevHdr, export_header(Node)),
             Delay  = aec_governance:beneficiary_reward_delay(),
             case node_height(Node) > aec_block_genesis:height() + Delay of
                 true  -> {grant_fees(Node, Trees1, Delay, FraudStatus, State), TotalFees, #{}};
