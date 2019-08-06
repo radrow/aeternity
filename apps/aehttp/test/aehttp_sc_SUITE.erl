@@ -87,6 +87,8 @@
       93,11,3,93,177,65,197,27,123,127,177,165,190,211,20,112,79,108,
       85,78,88,181,26,207,191,211,40,225,138,154>>}).
 
+-define(CACHE_DEFAULT_PASSWORD, "correct horse battery staple").
+
 all() -> [{group, plain}, {group, aevm}, {group, fate}].
 
 groups() ->
@@ -1026,7 +1028,8 @@ sc_ws_leave_(Config) ->
     ReestablOptions = #{existing_channel_id => IDi,
                         offchain_tx => StI,
                         port => RPort,
-                        protocol => maps:get(protocol, Options)},
+                        protocol => maps:get(protocol, Options),
+                        state_password => ?CACHE_DEFAULT_PASSWORD},
     ReestablOptions.
 
 
@@ -2187,11 +2190,14 @@ call_a_contract(Function, Argument, ContractPubKey, Contract, SenderConnPid,
         CallOpts#{call_data => <<"ABCDEFG">>}, Config),
     {ok, #{<<"reason">> := <<"broken_encoding: bytearray">>}} =
         wait_for_channel_event(SenderConnPid, error, Config),
+    ct:log("BROKEN CONTRACT ID"),
     ws_send_tagged(SenderConnPid, <<"channels.update.call_contract">>,
         CallOpts#{contract_id => <<"ABCDEFG">>}, Config),
+    ct:log("WAIT"),
     {ok, #{<<"reason">> := <<"broken_encoding: contracts">>}} =
         wait_for_channel_event(SenderConnPid, error, Config),
     % correct call
+    ct:log("CORRECT"),
     ws_send_tagged(SenderConnPid, <<"channels.update.call_contract">>,
                    CallOpts, Config),
     #{tx := _UnsignedStateTx, updates := _Updates} = UpdateVolley().
@@ -2222,11 +2228,14 @@ dry_call_a_contract(Function, Argument, ContractPubKey, Contract, SenderConnPid,
                    CallOpts#{call_data => <<"ABCDEFG">>}, Config),
     {ok, #{<<"reason">> := <<"broken_encoding: bytearray">>}} =
         wait_for_channel_event(SenderConnPid, error, Config),
+    ct:log("[1] BROKEN contract id"),
     ws_send_tagged(SenderConnPid, <<"channels.dry_run.call_contract">>,
                    CallOpts#{contract_id => <<"ABCDEFG">>}, Config),
     {ok, #{<<"reason">> := <<"broken_encoding: contracts">>}} =
         wait_for_channel_event(SenderConnPid, error, Config),
+    ct:log("[1] CLEAN"),
     {ok, <<"call_contract">>, CallRes} = wait_for_channel_event(SenderConnPid, dry_run, Config),
+    ct:log("WTF: ~p", [CallRes]),
     ok = ?WS:unregister_test_for_channel_event(SenderConnPid, dry_run),
     #{<<"caller_id">>         := _CallerId,
       <<"caller_nonce">>      := CallRound,
@@ -2794,7 +2803,8 @@ channel_options(IPubkey, RPubkey, IAmt, RAmt, Other, Config) ->
                   initiator_amount => IAmt,
                   responder_amount => RAmt,
                   channel_reserve => 2,
-                  protocol => sc_ws_protocol(Config)
+                  protocol => sc_ws_protocol(Config),
+                  state_password => ?CACHE_DEFAULT_PASSWORD
                 }, Other).
 
 reconnect_channel_options(SignedTx, Config) ->
